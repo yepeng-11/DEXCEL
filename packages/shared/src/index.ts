@@ -26,3 +26,14 @@ export enum FetchStrategy {
   /** 取数快照：选定时的值存入业务记录 */
   Snapshot = 'snapshot',
 }
+
+/** 平台角色：管理设计端账号 / 工作人员端账号 */
+export type Role = 'admin' | 'user';
+
+/** 登录用户信息（不含口令） */
+export interface UserInfo {
+  id: number;
+  username: string;
+  displayName: string;
+  role: Role;
+}
