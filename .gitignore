@@ -1,0 +1,30 @@
+# dependencies
+node_modules/
+
+# build output
+dist/
+build/
+coverage/
+*.tsbuildinfo
+
+# env & secrets
+.env
+.env.*
+!.env.example
+
+# logs
+*.log
+npm-debug.log*
+
+# editor / OS
+.idea/
+.vscode/
+Thumbs.db
+.DS_Store
+
+# local runtime data (MySQL data dir, uploads)
+mysql/data/
+data/uploads/
+
+# temp
+tmp/
