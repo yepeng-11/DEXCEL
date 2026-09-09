@@ -2,7 +2,7 @@ import { Injectable, UnauthorizedException } from '@nestjs/common';
 import { randomUUID } from 'node:crypto';
 import type { RowDataPacket } from 'mysql2';
 import type { Role, UserInfo } from '@dexcel/shared';
-import { verifyPassword } from './password.util';
+import { hashPassword, verifyPassword } from './password.util';
 import { DatabaseService } from '../database/database.module';
 
 const SESSION_TTL_MS = 12 * 60 * 60 * 1000; // 12 小时
@@ -32,7 +32,10 @@ export class AuthService {
 
   constructor(private readonly database: DatabaseService) {}
 
-  /** 登录：校验账号、口令与所选角色三者一致 */
+  /**
+   * 登录：校验账号、口令与所选页面一致。
+   * 角色规则：管理员可进入管理员页面或用户页面；普通用户只能进入用户页面。
+   */
   async login(username: string, password: string, role: Role): Promise<UserInfo & { sid: string }> {
     const [rows] = await this.database.db.query<UserRow[]>(
       'SELECT id, username, password_hash, display_name, role, status FROM sys_user WHERE username = ? LIMIT 1',
@@ -45,13 +48,41 @@ export class AuthService {
     if (user.status !== 'active') {
       throw new UnauthorizedException('账号已被停用');
     }
-    if (user.role !== role) {
-      throw new UnauthorizedException(
-        user.role === 'admin' ? '该账号是管理员，请在上方选择“管理员”登录' : '该账号是普通用户，请在上方选择“普通用户”登录',
-      );
+    if (role === 'admin' && user.role !== 'admin') {
+      throw new UnauthorizedException('普通用户账号无法进入管理员页面，请选择“用户页面”登录');
     }
     const sid = randomUUID();
     const info: UserInfo = { id: user.id, username: user.username, displayName: user.display_name, role: user.role };
+    this.sessions.set(sid, { user: info, expiresAt: Date.now() + SESSION_TTL_MS });
+    return { ...info, sid };
+  }
+
+  /**
+   * 注册：开放注册仅限普通用户（role 固定为 'user'）。
+   * 管理员账号由现有管理员在系统内开通，不走自助注册。
+   */
+  async register(username: string, password: string, displayName: string): Promise<UserInfo & { sid: string }> {
+    if (!/^[a-zA-Z0-9_]{3,32}$/.test(username)) {
+      throw new UnauthorizedException('账号需为 3-32 位字母、数字或下划线');
+    }
+    if (password.length < 6 || password.length > 64) {
+      throw new UnauthorizedException('密码长度需为 6-64 位');
+    }
+    const name = (displayName || username).slice(0, 64);
+    const [dup] = await this.database.db.query<UserRow[]>(
+      'SELECT id FROM sys_user WHERE username = ? LIMIT 1',
+      [username],
+    );
+    if (dup.length > 0) {
+      throw new UnauthorizedException('该账号已被注册，请换一个');
+    }
+    const [result] = await this.database.db.query(
+      'INSERT INTO sys_user (username, password_hash, display_name, role) VALUES (?, ?, ?, ?)',
+      [username, hashPassword(password), name, 'user'],
+    );
+    const id = Number((result as { insertId: number }).insertId);
+    const sid = randomUUID();
+    const info: UserInfo = { id, username, displayName: name, role: 'user' };
     this.sessions.set(sid, { user: info, expiresAt: Date.now() + SESSION_TTL_MS });
     return { ...info, sid };
   }

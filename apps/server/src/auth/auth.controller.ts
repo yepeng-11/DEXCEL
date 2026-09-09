@@ -38,6 +38,27 @@ export class AuthController {
     return { user };
   }
 
+  /** 注册：仅开放普通用户注册，成功后直接建立会话 */
+  @Post('register')
+  @HttpCode(200)
+  async register(
+    @Body() body: { username?: string; password?: string; displayName?: string },
+    @Res({ passthrough: true }) response: Response,
+  ) {
+    const { username, password, displayName } = body ?? {};
+    if (!username || !password) {
+      throw new UnauthorizedException('请填写账号和密码');
+    }
+    const { sid, ...user } = await this.authService.register(username, password, displayName ?? '');
+    response.cookie(SESSION_COOKIE, sid, {
+      httpOnly: true,
+      sameSite: 'lax',
+      path: '/',
+      maxAge: 12 * 60 * 60 * 1000,
+    });
+    return { user };
+  }
+
   @Post('logout')
   @HttpCode(200)
   logout(@Req() request: Request, @Res({ passthrough: true }) response: Response) {

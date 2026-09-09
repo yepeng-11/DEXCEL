@@ -20,9 +20,17 @@ export interface LoginPayload {
   role: Role;
 }
 
+export interface RegisterPayload {
+  username: string;
+  password: string;
+  displayName?: string;
+}
+
 export const authApi = {
   login: (payload: LoginPayload) =>
     apiFetch<{ user: UserInfo }>('/api/auth/login', { method: 'POST', body: JSON.stringify(payload) }),
+  register: (payload: RegisterPayload) =>
+    apiFetch<{ user: UserInfo }>('/api/auth/register', { method: 'POST', body: JSON.stringify(payload) }),
   logout: () => apiFetch<{ ok: true }>('/api/auth/logout', { method: 'POST' }),
   me: () => apiFetch<{ user: UserInfo }>('/api/auth/me'),
 };
